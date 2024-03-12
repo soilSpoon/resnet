@@ -21,13 +21,13 @@ CONFIG = {
 
 num_layers, use_bottleneck = CONFIG[34]
 
-model = ResNet(3, num_layers, use_bottleneck)
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(device)
 
+    model = ResNet(3, num_layers, use_bottleneck).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.CrossEntropyLoss().to(device)
 
