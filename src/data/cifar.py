@@ -27,6 +27,7 @@ class Cifar(Dataset):
         self.items, self.labels = self.read_items(root, file_type)
 
         self.items = torch.tensor(self.items, dtype=torch.float32, device=device)
+        self.labels = torch.tensor(self.labels, dtype=torch.uint8, device=device)
 
     def __len__(self):
         return len(self.items)
