@@ -1,15 +1,8 @@
-from enum import Enum
-from typing import List
+from typing import List, Union
 
 import torch
 from torch import nn, Tensor
 from torch.nn import functional as F
-
-
-from torch import optim, nn, utils, Tensor
-from torchvision.datasets import MNIST
-from torchvision.transforms import ToTensor
-import lightning as L
 
 
 def conv(
@@ -53,6 +46,20 @@ def bottleneck_residual_block(in_channels: int, out_channels: int, stride: int =
         nn.ReLU(),
         conv1x1(in_channels, out_channels),
     )
+
+
+def skip_connection(base: Tensor, target: Union[Tensor, None]) -> Tensor:
+    if target is None:
+        return base
+
+    if base.shape != target.shape:
+        base_channels = base[1]
+        target_channels = target[1]
+        stride = int(base_channels / target_channels)
+
+        target = conv1x1(target_channels, base_channels, stride)
+
+    return torch.add(base, target)
 
 
 class ResNet(nn.Module):
@@ -106,15 +113,7 @@ class ResNet(nn.Module):
 
             residual_blocks.append(residual_block)
 
-        convert_block = (
-            nn.Conv2d(int(in_channels / 2), in_channels, 1, 2)
-            if is_not_first_layer
-            else nn.Sequential()
-        )
-
-        return nn.ModuleDict(
-            {"convert_block": convert_block, "residual_blocks": residual_blocks}
-        )
+        return residual_blocks
 
     def residual_block(
         self,
@@ -130,24 +129,12 @@ class ResNet(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.input_block(x)
+
         last = None
 
-        for layer in self.hidden_layers:
-            convert_block = layer["convert_block"]
-            residual_blocks = layer["residual_blocks"]
-
-            for index, block in enumerate(residual_blocks):
-                is_channel_changed = index == 1
-
-                before = last
-                last = x
-
-                if before is not None:
-                    if is_channel_changed:
-                        before = convert_block(before)
-
-                    x = torch.add(x, before)
-
+        for residual_blocks in self.hidden_layers:
+            for block in enumerate(residual_blocks):
+                x, last = skip_connection(x, last), x
                 x = block(x)
                 x = F.relu(x)
 
