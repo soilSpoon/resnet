@@ -1,3 +1,5 @@
+from matplotlib import pyplot as plt
+import numpy as np
 import torch
 import torch.optim as optim
 from torch import nn
@@ -12,6 +14,7 @@ BATCH_SIZE = 256
 LEARNING_RATE = 0.001
 
 CONFIG = {
+    0: ([1, 1], True),
     18: ([2, 2, 2, 2], False),
     34: ([3, 4, 6, 3], False),
     50: ([3, 4, 6, 3], True),
@@ -19,13 +22,11 @@ CONFIG = {
     152: ([3, 8, 36, 3], True),
 }
 
-num_layers, use_bottleneck = CONFIG[34]
+num_layers, use_bottleneck = CONFIG[0]
 
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    print(device)
 
     model = ResNet(3, num_layers, use_bottleneck).to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -34,14 +35,12 @@ def main():
     dataset = Cifar(
         root="/content/drive/MyDrive/FastCampus/data/cifar-10",
         file_type=CifarFileType.TRAIN,
-        device=device,
     )
 
     training_dataset, validation_dataset = random_split(dataset, [0.9, 0.1])
     test_dataset = Cifar(
         root="/content/drive/MyDrive/FastCampus/data/cifar-10",
         file_type=CifarFileType.TEST,
-        device=device,
     )
 
     training_loader = DataLoader(
@@ -58,6 +57,8 @@ def main():
         total_loss = 0
 
         for item, label in training_loader:
+            item, label = item.to(device).float(), label.to(device)
+
             predictions = model(item)
             loss = criterion(predictions, label)
 
@@ -75,6 +76,8 @@ def main():
             total_loss = 0
 
             for item, label in validation_loader:
+                item, label = item.to(device).float(), label.to(device)
+
                 predictions = model(item)
                 loss = criterion(predictions, label)
 

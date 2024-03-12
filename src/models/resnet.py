@@ -4,6 +4,11 @@ import torch
 from torch import nn, Tensor
 from torch.nn import functional as F
 
+from torch import optim, nn, utils, Tensor
+from torchvision.datasets import MNIST
+from torchvision.transforms import ToTensor
+import lightning as L
+
 
 def conv(
     kernel_size: int,
@@ -33,7 +38,7 @@ def conv3x3(in_channels: int, out_channels: int, stride: int = 1) -> nn.Module:
     return conv(3, in_channels, out_channels, stride=stride)
 
 
-def normal_residual_block(in_channels: int, out_channels: int, stride: int = 1):
+def basic_block(in_channels: int, out_channels: int, stride: int = 1):
     return nn.Sequential(
         conv3x3(in_channels, out_channels, stride=stride),
         nn.ReLU(),
@@ -41,7 +46,7 @@ def normal_residual_block(in_channels: int, out_channels: int, stride: int = 1):
     )
 
 
-def bottleneck_residual_block(in_channels: int, out_channels: int, stride: int = 1):
+def bottleneck_block(in_channels: int, out_channels: int, stride: int = 1):
     return nn.Sequential(
         conv1x1(in_channels, in_channels, stride=stride),
         nn.ReLU(),
@@ -51,12 +56,7 @@ def bottleneck_residual_block(in_channels: int, out_channels: int, stride: int =
     )
 
 
-def skip_connection(
-    base: Tensor, target: Union[Tensor, None], preprocess: nn.Module
-) -> Tensor:
-    if target is None:
-        return base
-
+def skip_connection(base: Tensor, target: Tensor, preprocess: nn.Module) -> Tensor:
     if base.shape != target.shape:
         target = preprocess(target)
 
@@ -69,6 +69,9 @@ class ResNet(nn.Module):
         super().__init__()
 
         self.use_bottleneck = use_bottleneck
+        self.last_out_channels = 64 * (2 ** (len(num_layers) - 1))
+
+        print(self.last_out_channels)
 
         self.input_layer = self.input_block(input_size)
         self.output_layer = self.output_block()
@@ -86,10 +89,11 @@ class ResNet(nn.Module):
         )
 
     def output_block(self):
+
         return nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
-            nn.Linear(512, 1000),
+            nn.Linear(self.last_out_channels, 1000),
             nn.Linear(1000, 10),
         )
 
@@ -118,13 +122,16 @@ class ResNet(nn.Module):
             residual_blocks.append(residual_block)
 
         convert_block = (
-            nn.Conv2d(int(in_channels / 2), in_channels, 1, 2)
+            conv1x1(int(in_channels / 2), in_channels, stride=2)
             if is_not_first_layer
             else nn.Sequential()
         )
 
         return nn.ModuleDict(
-            {"convert_block": convert_block, "residual_blocks": residual_blocks}
+            {
+                "convert_block": convert_block,
+                "residual_blocks": residual_blocks,
+            }
         )
 
     def residual_block(
@@ -142,8 +149,6 @@ class ResNet(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         x = self.input_layer(x)
 
-        last = None
-
         for hidden_layer in self.hidden_layers:
             convert_block, residual_blocks = (
                 hidden_layer["convert_block"],
@@ -151,9 +156,10 @@ class ResNet(nn.Module):
             )
 
             for block in residual_blocks:
-                x, last = skip_connection(x, last, convert_block), x
+                identity = x
                 x = block(x)
                 x = F.relu(x)
+                x = skip_connection(x, identity, convert_block)
 
         x = self.output_layer(x)
 
