@@ -87,8 +87,6 @@ def main():
                 f"Epoch {epoch + 1}, validation, loss: {total_loss / len(validation_loader)}"
             )
 
-    # pass
-
 
 if __name__ == "__main__":
     main()
