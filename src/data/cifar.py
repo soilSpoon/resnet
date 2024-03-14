@@ -6,6 +6,8 @@ import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
+ROOT = "/content/drive/MyDrive/FastCampus/data/cifar-10"
+
 
 class CifarFileType(Enum):
     TRAIN = "TRAIN"
@@ -24,7 +26,7 @@ class Cifar(Dataset):
         CifarFileType.TEST: ["test_batch"],
     }
 
-    def __init__(self, root: str, file_type: CifarFileType):
+    def __init__(self, file_type: CifarFileType, root: str = ROOT):
         self.items, self.labels = self.read_items(root, file_type)
 
         self.transforms = v2.Compose(

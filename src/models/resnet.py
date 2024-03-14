@@ -1,12 +1,9 @@
-from typing import List, Union
+from typing import List, Tuple, Union
 
-import torch
-from torch import nn, Tensor
+from torch import optim, nn, Tensor
 from torch.nn import functional as F
+from torchmetrics.classification import MulticlassF1Score
 
-from torch import optim, nn, utils, Tensor
-from torchvision.datasets import MNIST
-from torchvision.transforms import ToTensor
 import lightning as L
 
 
@@ -85,20 +82,35 @@ class Bottleneck(nn.Module):
         return x
 
 
-class ResNet(nn.Module):
+class ResNet(L.LightningModule):
+    INITIAL_CHANNELS = 64
 
-    def __init__(self, input_size: int, num_layers: List[int], use_bottleneck: bool):
+    def __init__(
+        self,
+        input_size: int,
+        num_layers: List[int],
+        num_classes: int,
+        use_bottleneck: bool,
+        example_input_array: Union[Tensor, None] = None,
+    ):
         super().__init__()
 
-        self.use_bottleneck = use_bottleneck
-        last_out_channels_weight = 4 if use_bottleneck else 1
+        if example_input_array is not None:
+            self.example_input_array = example_input_array
+
+        self.train_f1 = MulticlassF1Score(num_classes=num_classes, average="macro")
+        self.val_f1 = MulticlassF1Score(num_classes=num_classes, average="macro")
+
+        # bottlenck 사용 여부에 따라 ouput channels 조정
+        self.block_weight = 4 if use_bottleneck else 1
+
         self.last_out_channels = (
-            64 * (2 ** (len(num_layers) - 1)) * last_out_channels_weight
+            ResNet.INITIAL_CHANNELS * (2 ** (len(num_layers) - 1)) * self.block_weight
         )
-        self.residual_block = Bottleneck if self.use_bottleneck else BasicBlock
+        self.residual_block = Bottleneck if use_bottleneck else BasicBlock
 
         self.input_layer = self.input_block(input_size)
-        self.output_layer = self.output_block()
+        self.output_layer = self.output_block(num_classes)
         self.hidden_layers = nn.ModuleList([])
 
         for layer_index, num_layer in enumerate(num_layers):
@@ -107,17 +119,17 @@ class ResNet(nn.Module):
 
     def input_block(self, input_size: int):
         return nn.Sequential(
-            conv7x7(input_size, 64, stride=2),
+            conv7x7(input_size, ResNet.INITIAL_CHANNELS, stride=2),
             nn.ReLU(),
             nn.MaxPool2d(3, 2, padding=1),
         )
 
-    def output_block(self):
+    def output_block(self, num_classes: int):
         return nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
             nn.Linear(self.last_out_channels, 1000),
-            nn.Linear(1000, 10),
+            nn.Linear(1000, num_classes),
         )
 
     def hidden_layer(
@@ -125,9 +137,9 @@ class ResNet(nn.Module):
     ) -> nn.ModuleDict:
         is_first_layer = layer_index == 0
 
-        in_channels = 64 * 2**layer_index
-        out_channels_weight = 4 if self.use_bottleneck else 1
-        out_channels = in_channels * out_channels_weight
+        base_in_channels = ResNet.INITIAL_CHANNELS * 2**layer_index
+        out_channels_weight = self.block_weight
+        out_channels = base_in_channels * out_channels_weight
 
         residual_blocks = nn.ModuleList([])
 
@@ -137,16 +149,18 @@ class ResNet(nn.Module):
             stride = 1
             in_channels_weight = 1
 
+            # 레이어 바뀔 때 downsample 인자 처리
             if not is_first_layer and is_first_block:
                 stride *= 2
                 in_channels_weight *= 0.5
 
-            if self.use_bottleneck and not (is_first_layer and is_first_block):
-                in_channels_weight *= 4
+            # basic, bottleneck weight 처리
+            if not (is_first_layer and is_first_block):
+                in_channels_weight *= self.block_weight
 
-            residual_block = self.residual_block(
-                int(in_channels * in_channels_weight), out_channels, stride
-            )
+            in_channels = int(base_in_channels * in_channels_weight)
+
+            residual_block = self.residual_block(in_channels, out_channels, stride)
 
             residual_blocks.append(residual_block)
 
@@ -162,3 +176,45 @@ class ResNet(nn.Module):
         x = self.output_layer(x)
 
         return F.log_softmax(x, dim=0)
+
+    def training_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
+        inputs, targets = batch
+        predictions = self(inputs)
+
+        loss = F.nll_loss(predictions, targets)
+        self.train_f1(predictions, targets)
+
+        self.log_dict(
+            {"train_loss": loss, "train_f1": self.train_f1},
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+        )
+
+        return loss
+
+    def validation_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
+        inputs, targets = batch
+        predictions = self(inputs)
+
+        loss = F.nll_loss(predictions, targets)
+        self.val_f1(predictions, targets)
+
+        self.log_dict(
+            {"val_loss": loss, "val_f1": self.val_f1},
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+        )
+
+    def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
+        inputs, targets = batch
+        predictions = self(inputs)
+
+        loss = F.nll_loss(predictions, targets)
+
+        self.log("test_loss", loss)
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+        return optimizer
