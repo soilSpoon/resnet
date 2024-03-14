@@ -4,7 +4,7 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset
-from torchvision import transforms
+from torchvision.transforms import v2
 
 
 class CifarFileType(Enum):
@@ -27,14 +27,21 @@ class Cifar(Dataset):
     def __init__(self, root: str, file_type: CifarFileType):
         self.items, self.labels = self.read_items(root, file_type)
 
+        self.transforms = v2.Compose(
+            [
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize((0, 0, 0), (1, 1, 1)),
+            ]
+        )
+
     def __len__(self):
         return len(self.items)
 
     def __getitem__(self, index):
         label = self.labels[index]
         item = self.items[index]
-        item = item / 255.0
-        item = item
+        item = torch.tensor(item)
+        item = self.transforms(item)
 
         return item, label
 
