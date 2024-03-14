@@ -6,6 +6,8 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+ROOT = "/content/drive/MyDrive/FastCampus/data/CelebA"
+
 CSV = namedtuple("CSV", ["header", "index", "data"])
 
 
@@ -26,9 +28,7 @@ class CelebA(Dataset):
         return len(self.attr)
 
     def __getitem__(self, index):
-        img = PIL.Image.open(
-            f"/content/drive/MyDrive/FastCampus/data/Img/img_align_celeba/{self.filename[index]}"
-        )
+        img = PIL.Image.open(f"{ROOT}/Img/img_align_celeba/{self.filename[index]}")
 
         X = self.transform(img).to(self.device)
         target = self.attr[index, :]
@@ -36,9 +36,7 @@ class CelebA(Dataset):
         return X, target
 
     def _load_csv(self, filename: str, header: Optional[int] = None) -> CSV:
-        with open(
-            f"/content/drive/MyDrive/FastCampus/data/Anno/{filename}"
-        ) as csv_file:
+        with open(f"{ROOT}/Anno/{filename}") as csv_file:
             data = list(csv.reader(csv_file, delimiter=" ", skipinitialspace=True))
 
         if header is not None:
