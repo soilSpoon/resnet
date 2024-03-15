@@ -7,11 +7,12 @@ import lightning as L
 from lightning.pytorch.callbacks import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelSummary
+from lightning.pytorch.callbacks import ModelCheckpoint
+
 from argparse import ArgumentParser, Namespace
 
 from src.models.resnet import ResNet
 from src.data.cifar import Cifar, CifarFileType
-
 
 WANDB_PATH = "/content/wandb"
 
@@ -93,6 +94,7 @@ def main():
     trainer = L.Trainer(
         logger=WandbLogger(save_dir=WANDB_PATH),
         callbacks=[
+            ModelCheckpoint(),
             ModelSummary(max_depth=-1),
             EarlyStopping(monitor="val_f1", mode="max"),
         ],
