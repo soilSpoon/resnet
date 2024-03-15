@@ -67,13 +67,16 @@ def test(model: ResNet, trainer: L.Trainer):
 def parse_args() -> Namespace:
     parser = ArgumentParser()
 
-    group = parser.add_mutually_exclusive_group(default="train")
-    group.add_argument("--train")
-    group.add_argument("--test")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--train", action="store_true", default=True)
+    group.add_argument("--test", action="store_true", default=False)
 
     parser.add_argument("--size", choices=[0, 18, 34, 50, 101, 152], default=0)
 
     args = parser.parse_args()
+
+    if args.test:
+        args.train = False
 
     return args
 
