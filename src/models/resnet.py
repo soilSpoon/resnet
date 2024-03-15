@@ -191,7 +191,7 @@ class ResNet(L.LightningModule):
             prog_bar=True,
         )
 
-        return loss
+        return {"loss": loss}
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         inputs, targets = batch
