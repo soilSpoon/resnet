@@ -67,7 +67,7 @@ def test(model: ResNet, trainer: L.Trainer):
 def parse_args() -> Namespace:
     parser = ArgumentParser()
 
-    group = parser.add_mutually_exclusive_group(required=True)
+    group = parser.add_mutually_exclusive_group(default="train")
     group.add_argument("--train")
     group.add_argument("--test")
 
