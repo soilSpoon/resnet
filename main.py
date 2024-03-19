@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 import torch
 from torch.utils.data import DataLoader, random_split
@@ -13,8 +14,9 @@ from argparse import ArgumentParser, Namespace
 
 from src.models.resnet import ResNet
 from src.data.cifar import Cifar, CifarFileType
+from src.data.celeb_a import CelebA
 
-WANDB_PATH = "/content/wandb"
+WANDB_PATH = "/teamspace/studios/this_studio/wandb"
 
 EPOCHS = 100
 K = 3
@@ -39,14 +41,11 @@ DATA_LOADER_PARAMS = {
 }
 
 INPUT_CHANNELS = 3
-NUM_CLASSES = 10
-
+NUM_CLASSES = 2
+# NUM_CLASSES = 10
 
 def train(model: ResNet, trainer: L.Trainer):
-    # dataset = CelebA()
-    dataset = Cifar(file_type=CifarFileType.TRAIN)
-
-    train_dataset, validation_dataset = random_split(dataset, [0.9, 0.1])
+    train_dataset, validation_dataset = random_split(CelebA(), [0.9, 0.1])
 
     train_loader = DataLoader(dataset=train_dataset, **DATA_LOADER_PARAMS)
     validation_loader = DataLoader(dataset=validation_dataset, **DATA_LOADER_PARAMS)
@@ -68,15 +67,18 @@ def parse_args() -> Namespace:
     parser = ArgumentParser()
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--train", action="store_true", default=True)
-    group.add_argument("--test", action="store_true", default=False)
+    group.add_argument("--train", action='store_true')
+    group.add_argument("--test", action='store_true')
+    parser.set_defaults(train=True, test=False)
 
-    parser.add_argument("--size", choices=[0, 18, 34, 50, 101, 152], default=0)
+    parser.add_argument("--size", choices=['0', '18', '34', '50', '101', '152'], default='34')
 
     args = parser.parse_args()
 
     if args.test:
         args.train = False
+
+    args.size = int(args.size)
 
     return args
 
@@ -91,13 +93,26 @@ def main():
         num_layers=num_layers,
         num_classes=NUM_CLASSES,
         use_bottleneck=use_bottleneck,
-        example_input_array=torch.Tensor(256, 3, 32, 32),
+        example_input_array=torch.Tensor(256, 3, 128, 128),
     )
 
+    mode = "train" if args.train else "test"
+    pre_text = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-{args.size}"
+
     trainer = L.Trainer(
-        logger=WandbLogger(save_dir=WANDB_PATH),
+        logger=WandbLogger(
+            project="resnet",
+            name=f"{mode}-{pre_text}",    
+            save_dir=WANDB_PATH,
+        ),
         callbacks=[
-            ModelCheckpoint(),
+            ModelCheckpoint(
+                dirpath=f'{WANDB_PATH}/checkpoints',
+                filename=f'{pre_text}-{{epoch}}-{{val_f1:.4f}}',
+                save_top_k =3,
+                monitor="val_f1",
+                mode="max"
+            ),
             ModelSummary(max_depth=-1),
             EarlyStopping(monitor="val_f1", mode="max"),
         ],
