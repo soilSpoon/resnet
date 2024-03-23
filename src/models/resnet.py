@@ -17,7 +17,7 @@ def conv(
 
     return nn.Sequential(
         nn.Conv2d(
-            in_channels, out_channels, kernel_size, stride=stride, padding=padding
+            in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=False
         ),
         nn.BatchNorm2d(out_channels),
     )

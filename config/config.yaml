@@ -1,0 +1,10 @@
+wandb:
+  path: /teamspace/studios/this_studio/wandb
+  user: omry
+  pass: secret
+
+train:
+  epochs: 100
+  batch_size: 256
+  early_stopping_k: 3
+  learning_rate: 0.001
