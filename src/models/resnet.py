@@ -1,5 +1,6 @@
 from typing import List, Tuple, Union
 
+import torch
 from torch import optim, nn, Tensor
 from torch.nn import functional as F
 from torchmetrics.classification import MulticlassF1Score
@@ -17,13 +18,18 @@ def conv(
 
     return nn.Sequential(
         nn.Conv2d(
-            in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=False
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=False,
         ),
         nn.BatchNorm2d(out_channels),
     )
 
 
-def conv1x1(in_channels: int, out_channels: int, stride: int = 1):
+def conv1x1(in_channels: int, out_channels: int, stride: int = 1) -> nn.Module:
     return conv(1, in_channels, out_channels, stride=stride)
 
 
@@ -31,7 +37,7 @@ def conv3x3(in_channels: int, out_channels: int, stride: int = 1) -> nn.Module:
     return conv(3, in_channels, out_channels, stride=stride)
 
 
-def conv7x7(in_channels: int, out_channels: int, stride: int = 1):
+def conv7x7(in_channels: int, out_channels: int, stride: int = 1) -> nn.Module:
     return conv(7, in_channels, out_channels, stride=stride)
 
 
@@ -117,14 +123,14 @@ class ResNet(L.LightningModule):
             hidden_layer = self.hidden_layer(num_layer, layer_index)
             self.hidden_layers.append(hidden_layer)
 
-    def input_block(self, input_size: int):
+    def input_block(self, input_size: int) -> nn.Module:
         return nn.Sequential(
             conv7x7(input_size, ResNet.INITIAL_CHANNELS, stride=2),
             nn.ReLU(),
             nn.MaxPool2d(3, 2, padding=1),
         )
 
-    def output_block(self, num_classes: int):
+    def output_block(self, num_classes: int) -> nn.Module:
         return nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
@@ -134,7 +140,7 @@ class ResNet(L.LightningModule):
 
     def hidden_layer(
         self, residual_block_count: int, layer_index: int
-    ) -> nn.ModuleDict:
+    ) -> nn.ModuleList:
         is_first_layer = layer_index == 0
 
         base_in_channels = ResNet.INITIAL_CHANNELS * 2**layer_index
@@ -169,15 +175,19 @@ class ResNet(L.LightningModule):
     def forward(self, x: Tensor) -> Tensor:
         x = self.input_layer(x)
 
-        for residual_blocks in self.hidden_layers:
+        residual_blocks: nn.ModuleList
+
+        for residual_blocks in self.hidden_layers:  # type: ignore
             for block in residual_blocks:
                 x = block(x)
 
         x = self.output_layer(x)
 
-        return F.log_softmax(x, dim=0)
+        return F.sigmoid(x)
 
-    def training_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
+    def training_step(
+        self, batch: Tuple[Tensor, Tensor], batch_idx: int
+    ) -> dict[str, torch.Tensor]:
         inputs, targets = batch
         predictions = self(inputs)
 
@@ -193,7 +203,7 @@ class ResNet(L.LightningModule):
 
         return {"loss": loss}
 
-    def validation_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
+    def validation_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int) -> None:
         inputs, targets = batch
         predictions = self(inputs)
 
@@ -207,7 +217,7 @@ class ResNet(L.LightningModule):
             prog_bar=True,
         )
 
-    def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
+    def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int) -> None:
         inputs, targets = batch
         predictions = self(inputs)
 
@@ -215,6 +225,6 @@ class ResNet(L.LightningModule):
 
         self.log("test_loss", loss)
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> optim.Adam:
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
