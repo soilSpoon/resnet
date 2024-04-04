@@ -17,6 +17,9 @@ hydra-zen = "^0.12.1"
 beartype = "^0.17.2"
 polars = "^0.20.18"
 pandas = "1.5.2"
+python-dotenv = "^1.0.1"
+wandb = "^0.16.6"
+rich = "^13.7.1"
 
 
 [build-system]
