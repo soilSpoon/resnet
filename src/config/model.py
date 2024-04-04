@@ -1,7 +1,11 @@
-from typing import List
-from dataclasses import dataclass
+from hydra_zen import store
 
-CONFIG = {
+from src.models.resnet import ResNet
+
+
+INPUT_CHANNELS = 3
+NUM_CLASSES = 40
+MODEL_CONFIG = {
     0: ([1, 1], False),
     18: ([2, 2, 2, 2], False),
     34: ([3, 4, 6, 3], False),
@@ -10,9 +14,18 @@ CONFIG = {
     152: ([3, 8, 36, 3], True),
 }
 
-DEFAULT_SIZE = 18
+model_store = store(group="action/model")
 
-@dataclass
-class ModelConfig:
-    layers: List[int] = CONFIG[DEFAULT_SIZE]
-    use_bottleneck: bool = CONFIG[DEFAULT_SIZE]
+
+def initialize_model_store():
+    for key in MODEL_CONFIG:
+        num_layers, use_bottleneck = MODEL_CONFIG[key]
+
+        model_parameters = {
+            "input_size": INPUT_CHANNELS,
+            "num_layers": num_layers,
+            "num_classes": NUM_CLASSES,
+            "use_bottleneck": use_bottleneck,
+        }
+
+        model_store(ResNet, **model_parameters, name=f"resnet{key}")

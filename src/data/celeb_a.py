@@ -1,55 +1,60 @@
-import numpy as np
+import os
+from typing import Literal, Tuple
 import pandas as pd
 
-from typing import Optional
 import PIL.Image
 import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
-from enum import Enum
-
-ROOT = "/content/drive/MyDrive/FastCampus/data/CelebA"
-ROOT = "/teamspace/studios/this_studio/data/CelebA"
-
-class CelebAFileType(Enum):
-    TRAIN = "TRAIN"
-    TEST = "TEST"
 
 class CelebA(Dataset):
+    def __init__(self, mode: Literal["train", "test"] = "train"):
+        self.mode = mode
 
-    def __init__(self, file_type: CelebAFileType):
-        filename = "train.csv" if CelebAFileType.TRAIN else "test.csv"
-        # filename = 'list_attr_celeba.txt'
-
-        attr = pd.read_csv(f"{ROOT}/Anno/{filename}", index_col=0)
+        attr: pd.DataFrame = pd.read_csv(
+            f"{self.root}/Anno/{self.filename}", index_col=0
+        )
 
         # map from {-1, 1} to {0, 1}
-        for col in attr.columns[(attr == 1).any() & (attr == -1).any()]:
-            attr[col] = attr[col].replace(-1, 0)
+        for column in attr.columns:
+            attr[column] = attr[column].replace(-1, 0)
 
-        self.transform = v2.Compose([
-            v2.CenterCrop((178, 178)),
-            # v2.Resize((128, 128)),
-            v2.PILToTensor(),
-            v2.ToDtype(dtype=torch.float32, scale=True)
-        ])
+        self.transform = v2.Compose(
+            [
+                v2.CenterCrop((178, 178)),
+                # v2.Resize((128, 128)),
+                v2.PILToTensor(),
+                v2.ToDtype(dtype=torch.float32, scale=True),
+            ]
+        )
 
-        print(attr.index)
-
-        self.filename = attr.index
+        self.filenames = attr.index
         self.attr = attr
         self.attr_names = attr.columns
 
-        print(self.attr_names)
+    @property
+    def root(self) -> str:
+        path = os.getenv("DATA_PATH")
 
-    def __len__(self):
+        if path is None:
+            raise Exception("Environment variable 'DATA_PATH' is not set.")
+
+        return path
+
+    @property
+    def filename(self) -> Literal["train.csv", "test.csv"]:
+        return "train.csv" if self.mode else "test.csv"
+
+    def __len__(self) -> int:
         return len(self.attr)
 
-    def __getitem__(self, index):
-        img = PIL.Image.open(f"{ROOT}/Img/img_align_celeba/{self.filename[index]}")
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        img = PIL.Image.open(
+            f"{self.root}/Img/img_align_celeba/{self.filenames[index]}"
+        )
 
-        X = self.transform(img)
-        target = self.attr['Male'].iloc[index]
+        X: torch.Tensor = self.transform(img)
+        target = self.attr.iloc[index]
 
-        return X, target
+        return X, torch.Tensor(target.values)

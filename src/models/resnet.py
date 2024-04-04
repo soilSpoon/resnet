@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import torch
 from torch import optim, nn, Tensor
@@ -97,18 +97,16 @@ class ResNet(L.LightningModule):
         num_layers: List[int],
         num_classes: int,
         use_bottleneck: bool,
-        example_input_array: Union[Tensor, None] = None,
     ):
         super().__init__()
-
-        if example_input_array is not None:
-            self.example_input_array = example_input_array
 
         self.train_f1 = MulticlassF1Score(num_classes=num_classes, average="macro")
         self.val_f1 = MulticlassF1Score(num_classes=num_classes, average="macro")
 
         # bottlenck 사용 여부에 따라 ouput channels 조정
         self.block_weight = 4 if use_bottleneck else 1
+
+        self.model_size = sum(num_layers) * (3 if use_bottleneck else 2) + 2
 
         self.last_out_channels = (
             ResNet.INITIAL_CHANNELS * (2 ** (len(num_layers) - 1)) * self.block_weight
@@ -122,6 +120,12 @@ class ResNet(L.LightningModule):
         for layer_index, num_layer in enumerate(num_layers):
             hidden_layer = self.hidden_layer(num_layer, layer_index)
             self.hidden_layers.append(hidden_layer)
+
+        self.initialize_weights()
+
+    @property
+    def example_input_array(self) -> torch.Tensor:
+        return torch.Tensor(256, 3, 128, 128)
 
     def input_block(self, input_size: int) -> nn.Module:
         return nn.Sequential(
@@ -191,7 +195,7 @@ class ResNet(L.LightningModule):
         inputs, targets = batch
         predictions = self(inputs)
 
-        loss = F.nll_loss(predictions, targets)
+        loss = F.binary_cross_entropy_with_logits(predictions, targets)
         self.train_f1(predictions, targets)
 
         self.log_dict(
@@ -207,7 +211,7 @@ class ResNet(L.LightningModule):
         inputs, targets = batch
         predictions = self(inputs)
 
-        loss = F.nll_loss(predictions, targets)
+        loss = F.binary_cross_entropy_with_logits(predictions, targets)
         self.val_f1(predictions, targets)
 
         self.log_dict(
@@ -221,10 +225,19 @@ class ResNet(L.LightningModule):
         inputs, targets = batch
         predictions = self(inputs)
 
-        loss = F.nll_loss(predictions, targets)
+        loss = F.binary_cross_entropy_with_logits(predictions, targets)
 
         self.log("test_loss", loss)
 
     def configure_optimizers(self) -> optim.Adam:
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
+
+    def initialize_weights(self):
+        if isinstance(self, nn.Conv2d):
+            nn.init.kaiming_normal_(self.weight, mode="fan_out", nonlinearity="relu")
+        elif isinstance(self, nn.BatchNorm2d):
+            self.weight.data.fill_(1)
+            self.bias.data.zero_()
+        elif isinstance(self, nn.Linear):
+            nn.init.kaiming_normal_(self.weight, mode="fan_avg", nonlinearity="relu")
