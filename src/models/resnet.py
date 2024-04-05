@@ -103,14 +103,11 @@ class ResNet(L.LightningModule):
         self.train_f1 = MulticlassF1Score(num_classes=num_classes, average="macro")
         self.val_f1 = MulticlassF1Score(num_classes=num_classes, average="macro")
 
-        # bottlenck 사용 여부에 따라 ouput channels 조정
-        self.block_weight = 4 if use_bottleneck else 1
+        self.input_size = input_size
+        self.use_bottleneck = use_bottleneck
+        self.num_layers = num_layers
+        self.num_classes = num_classes
 
-        self.model_size = sum(num_layers) * (3 if use_bottleneck else 2) + 2
-
-        self.last_out_channels = (
-            ResNet.INITIAL_CHANNELS * (2 ** (len(num_layers) - 1)) * self.block_weight
-        )
         self.residual_block = Bottleneck if use_bottleneck else BasicBlock
 
         self.input_layer = self.input_block(input_size)
@@ -122,6 +119,23 @@ class ResNet(L.LightningModule):
             self.hidden_layers.append(hidden_layer)
 
         self.initialize_weights()
+
+    @property
+    def last_out_channels(self):
+        return (
+            ResNet.INITIAL_CHANNELS
+            * (2 ** (len(self.num_layers) - 1))
+            * self.block_weight
+        )
+
+    @property
+    def model_size(self):
+        return sum(self.num_layers) * (3 if self.use_bottleneck else 2) + 2
+
+    @property
+    def block_weight(self):
+        # bottlenck 사용 여부에 따라 ouput channels 조정
+        return 4 if self.use_bottleneck else 1
 
     @property
     def example_input_array(self) -> torch.Tensor:
