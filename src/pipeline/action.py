@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Final, Literal
 from beartype import beartype
 
@@ -25,6 +26,7 @@ class Action:
         early_stopping_patience=3,
     ) -> None:
         self.model = model
+
         self.mode: Final = mode
         self.epochs = epochs
         self.batch_size = batch_size
@@ -107,8 +109,19 @@ class Action:
     def _test(self) -> None:
         test_loader = self.create_dataloader(CelebA("test"))
 
-        # *_, last_ckpt = sorted(outdir.glob("**/*.ckpt"))
+        checkpoints = sorted(Path(self.output_path).glob("**/*.ckpt"))
 
-        # self.model.load_from_checkpoint()
+        if len(checkpoints) == 0:
+            raise FileNotFoundError("No checkpoint found for testing.")
+
+        *_, last_ckpt = checkpoints
+
+        self.model = ResNet.load_from_checkpoint(
+            last_ckpt,
+            input_size=self.model.input_size,
+            num_layers=self.model.num_layers,
+            num_classes=self.model.num_classes,
+            use_bottleneck=self.model.use_bottleneck,
+        )
 
         self.trainer.test(self.model, dataloaders=test_loader)
