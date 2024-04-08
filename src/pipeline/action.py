@@ -1,15 +1,12 @@
 import os
 from pathlib import Path
 from typing import Final, Literal
-from beartype import beartype
-
-from torch.utils.data import Dataset, DataLoader, random_split
 
 import lightning as L
-from lightning.pytorch.callbacks import EarlyStopping
+from beartype import beartype
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, RichModelSummary
 from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.callbacks import RichModelSummary
+from torch.utils.data import DataLoader, Dataset, random_split
 
 from src.data.celeb_a import CelebA
 from src.models.resnet import ResNet

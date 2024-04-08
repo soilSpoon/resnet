@@ -1,11 +1,10 @@
 from typing import List, Tuple
 
+import lightning as L
 import torch
-from torch import optim, nn, Tensor
+from torch import Tensor, nn, optim
 from torch.nn import functional as F
 from torchmetrics.classification import MulticlassF1Score
-
-import lightning as L
 
 
 def conv(
@@ -63,7 +62,7 @@ class BasicBlock(nn.Module):
 
 
 class Bottleneck(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, stride: int = 1):
+    def __init__(self, in_channels: int, out_channels: int, stride: int = 1) -> None:
         super().__init__()
 
         middle_channels = int(out_channels / 4)
