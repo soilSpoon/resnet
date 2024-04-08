@@ -6,6 +6,8 @@ from torch import Tensor, nn, optim
 from torch.nn import functional as F
 from torchmetrics.classification import MulticlassF1Score
 
+from .seblock import SEBlock
+
 
 def conv(
     kernel_size: int,
@@ -46,6 +48,7 @@ class BasicBlock(nn.Module):
 
         self.conv1 = conv3x3(in_channels, out_channels, stride=stride)
         self.conv2 = conv3x3(out_channels, out_channels)
+        self.se = SEBlock(out_channels)
         self.downsample = conv1x1(in_channels, out_channels, stride)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -53,8 +56,12 @@ class BasicBlock(nn.Module):
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv2(x)
+
+        x = self.se(x)
+
         if x.shape != identity.shape:
             identity = self.downsample(identity)
+
         x += identity
         x = F.relu(x)
 
@@ -70,6 +77,7 @@ class Bottleneck(nn.Module):
         self.conv1 = conv1x1(in_channels, middle_channels, stride=stride)
         self.conv2 = conv3x3(middle_channels, middle_channels)
         self.conv3 = conv1x1(middle_channels, out_channels)
+        self.se = SEBlock(out_channels)
         self.downsample = conv1x1(in_channels, out_channels, stride)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -79,6 +87,9 @@ class Bottleneck(nn.Module):
         x = self.conv2(x)
         x = F.relu(x)
         x = self.conv3(x)
+
+        x = self.se(x)
+
         if x.shape != identity.shape:
             identity = self.downsample(identity)
         x += identity
