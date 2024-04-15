@@ -5,7 +5,7 @@ from typing import Final, Literal
 import lightning as L
 from beartype import beartype
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, RichModelSummary
-from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.loggers import Logger
 from torch.utils.data import DataLoader, Dataset, random_split
 
 from src.data.celeb_a import CelebA
@@ -14,15 +14,18 @@ from src.models.resnet import ResNet
 
 @beartype
 class Action:
+
     def __init__(
         self,
         model: ResNet,
+        logger: Logger,
         mode: Literal["train", "test"] = "train",
         epochs: int = 100,
         batch_size: int = 256,
         early_stopping_patience=3,
     ) -> None:
         self.model = model
+        self.logger = logger
 
         self.mode: Final = mode
         self.epochs = epochs
@@ -68,11 +71,7 @@ class Action:
     @property
     def trainer(self) -> L.Trainer:
         return L.Trainer(
-            logger=WandbLogger(
-                project="resnet",
-                name=f"{self.mode}-{self.pre_text}",
-                save_dir=self.output_path,
-            ),
+            logger=self.logger,
             callbacks=[
                 ModelCheckpoint(
                     dirpath=self.model_checkpoint_dir,

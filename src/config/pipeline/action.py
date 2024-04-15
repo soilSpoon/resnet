@@ -1,10 +1,8 @@
-from typing import Final
-from hydra_zen import store
-
 from src.pipeline.action import Action
 
+from ..auto_name_store import auto_name_store
 
-action_store = store(group="action")
+action_store = auto_name_store(group="action")
 
 
 def initialize_action_store() -> None:

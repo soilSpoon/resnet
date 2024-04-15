@@ -1,7 +1,6 @@
-from hydra_zen import store
-
 from src.models.resnet import ResNet
 
+from .auto_name_store import auto_name_store
 
 INPUT_CHANNELS = 3
 NUM_CLASSES = 40
@@ -14,7 +13,7 @@ MODEL_CONFIG = {
     152: ([3, 8, 36, 3], True),
 }
 
-model_store = store(group="action/model")
+model_store = auto_name_store(group="action/model")
 
 
 def initialize_model_store():
@@ -28,4 +27,4 @@ def initialize_model_store():
             "use_bottleneck": use_bottleneck,
         }
 
-        model_store(ResNet, **model_parameters, name=f"resnet{key}")
+        model_store(ResNet, **model_parameters, model_size=key, name=f"resnet{key}")
